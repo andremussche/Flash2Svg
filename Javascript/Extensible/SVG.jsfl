@@ -44,7 +44,7 @@
 			backgroundColor:ext.doc.backgroundColor,
 			includeBackground:false,
 			includeHiddenLayers:ext.includeHiddenLayers,
-			convertTextToOutlines:true,
+			convertTextToOutlines:true,     //sloooooooow
 			includeGuides:false,
 			selection:null,
 			swfPanelName:null,
@@ -297,27 +297,35 @@
 		doState:function(){
 			switch(this.currentState){
 				case this.STATE_PRE_INIT:
+					ext.message((new Date()).toLocaleTimeString() + ' - ' + "STATE_PRE_INIT");
 					this.qData.push(closure(this.doInit, [], this));
 					break;
 				case this.STATE_TIMELINES:
+					ext.message((new Date()).toLocaleTimeString() + ' - ' +"STATE_TIMELINES");
 					this.qData.push(closure(this.doNextTimeline, [], this));
 					break;
 				case this.STATE_DELETE_EXISTING_FILES:
+					ext.message((new Date()).toLocaleTimeString() + ' - ' +"STATE_DELETE_EXISTING_FILES");
 					this.qData.push(closure(this.deleteExistingFiles, [], this));
 					break;
 				case this.STATE_EXPANDING_USE_NODES:
+					ext.message((new Date()).toLocaleTimeString() + ' - ' +"STATE_EXPANDING_USE_NODES");
 					this.qData.push(closure(this.processExpandUseNodes, [], this));
 					break;
 				case this.STATE_REMOVING_UNUSED_SYMBOLS:
+					ext.message((new Date()).toLocaleTimeString() + ' - ' + "STATE_REMOVING_UNUSED_SYMBOLS");
 					//this.qData.push(closure(this.processRemoveUnused, [], this));
 					break;
 				case this.STATE_FINALISING_FILES:
+					ext.message((new Date()).toLocaleTimeString() + ' - ' + "STATE_FINALISING_FILES");
 					this.qData.push(closure(this.processFinaliseDocuments, [], this));
 					break;
 				case this.STATE_CLEANUP:
+					ext.message((new Date()).toLocaleTimeString() + ' - ' + "STATE_CLEANUP");
 					this.qData.push(closure(this.processCleanup, [], this));
 					break;
 				default:
+					ext.message((new Date()).toLocaleTimeString() + ' - ' + "DONE");
 					// done all
 					return true;
 			}
@@ -364,6 +372,7 @@
 
 			var xml=new XML('<svg xmlns:xlink="http://www.w3.org/1999/xlink"/>');
 			xml['@id']=this.id;
+			xml['@name']=this.name;
 			xml['@image-rendering']=this.rendering;
 			xml['@baseProfile']=this.baseProfile;
 			xml['@version']=this.version;
@@ -391,7 +400,8 @@
 					beginAnimation:this.beginAnimation,
 					repeatCount:this.repeatCount,
 					loopTweens:this.loopTweens,
-					discreteEasing:this.discreteEasing
+					discreteEasing:this.discreteEasing,
+					name:this.name
 				}
 			);
 			this._explodeNode(x, xml);
@@ -852,6 +862,7 @@
 					for each(var node in useNode..*){
 						if(node.hasOwnProperty('@id') && node.localName()!='mask'){
 							node.@id=this._uniqueID(String(node.@id));
+							node.@name=String(node.@name);
 						}
 						if(node.hasOwnProperty('@mask')){
 							var oldID=String(node.@mask).match(/(?:url\(#)(.*?)(?:\))/);
@@ -985,6 +996,8 @@
 		},
 
 		processElement:function(id, node, element, settings, dom){
+			ext.message((new Date()).toLocaleTimeString() + ' - ' + "processElement: " + id + ' - ' + element.name);
+
 			var elementXML=this._getElement(element,settings);
 			if(elementXML){
 				//var list = dom..g.(@id==id);
@@ -1045,7 +1058,10 @@
 					element instanceof ext.Text || 
 					element instanceof ext.TLFText
 				){
-					result=this._getText(element,settings);
+					if (this.convertTextToOutlines)
+					  result=this._getText(element,settings)
+					else
+  					  result=this._getShape(element,settings);
 				}
 			}
 			return result;
@@ -1140,11 +1156,13 @@
 			if(ext.log){
 				var timer=ext.log.startTimer('extensible.SVG._getTimeline()');	
 			}
+			ext.message((new Date()).toLocaleTimeString() + ' - ' + "_getTimeline: "+timeline.name + ' - ' + options.name);
 			var settings=new ext.Object({
 				startFrame:0,
 				endFrame:timeline.frames.length,
 				selection:undefined,
 				id:undefined,
+				name:options.name,
 				matrix:new ext.Matrix(),
 				libraryItem:undefined,
 				color:undefined,
@@ -1324,9 +1342,11 @@
 				instanceXML['@x']=0;
 				instanceXML['@y']=0;
 				instanceXML['@overflow']="visible";
+				instanceXML['@name']=options.name;
 
 				xml=new XML('<symbol/>');
 				xml['@id']=id;
+				xml['@name']=options.name;
 
 				if(!settings.isRoot){
 					this._symbols[symbolIDString] = xml;
@@ -2223,7 +2243,8 @@
 				frameCount: timeline.frames.length,
 				matrix: new ext.Matrix(),
 				colorTransform: null,
-				libraryItem:instance.libraryItem
+				libraryItem:instance.libraryItem,
+				name:instance.name
 			});
 			settings.extend(options);
 			//ext.message("_getSymbolInstance: "+instance.libraryItem.name+" - loop:"+instance.loop+" frameCount:"+settings.frameCount+" startFrame:"+settings.startFrame);
@@ -2552,6 +2573,7 @@
 			xml.@height=bitmapInstance.vPixels;
 			xml.@width=bitmapInstance.hPixels;
 			xml.@transform=this._getMatrix(bitmapInstance.matrix);
+			xml.@name=bitmapInstance.name;
 			return xml;
 		},
 		_getBitmapItem:function(item){
@@ -3282,6 +3304,7 @@
 					xml.@width=image.@width=item.width;
 					xml.@height=image.@height=item.height;
 					xml.@viewBox='0 0 '+String(xml.@width)+' '+String(xml.@height);
+					xml.@name=item.name;
 					var fMatrix=new ext.Matrix(fillObj.matrix);
 					fMatrix.a*=this.DEFAULT_BITMAP_SCALE;
 					fMatrix.b*=this.DEFAULT_BITMAP_SCALE;
@@ -3297,6 +3320,7 @@
 						use.@x=use.@y=0;
 						use['@xlink-href']='#'+String(symbol.@id);
 						use.@externalResourcesRequired='true';
+						use.@name=fillObj.name;
 						symbol.appendChild(image);
 						xml.appendChild(symbol);
 						xml.appendChild(use);
@@ -3387,6 +3411,8 @@
 			settings.extend(options);
 			var xml;
 			if(this.convertTextToOutlines){
+				ext.message((new Date()).toLocaleTimeString() + ' - ' + "convertTextToOutlines, step 1");
+
 				var timeline=element.timeline;
 				if(element instanceof ext.Text){
 					if(
@@ -3409,17 +3435,23 @@
 				var pd=Math.floor(Math.random()*99999999);
 				element.setPersistentData(id,'integer',pd);
 
+				ext.message((new Date()).toLocaleTimeString() + ' - ' + "convertTextToOutlines, step 2.1");
 				timeline.setSelectedLayers(layer.index);
+				ext.message((new Date()).toLocaleTimeString() + ' - ' + "convertTextToOutlines, step 2.2");
 				timeline.copyFrames(frame.startFrame);
 
 				var currentTimeline = ext.timeline;
 				currentTimeline.setSelectedLayers(currentTimeline.layerCount-1);
+				ext.message((new Date()).toLocaleTimeString() + ' - ' + "convertTextToOutlines, step 2.3");
 				
 				var tempLayerIndex = currentTimeline.addNewLayer('temp','normal',false);
+				ext.message((new Date()).toLocaleTimeString() + ' - ' + "convertTextToOutlines, step 2.4");
 				currentTimeline.setSelectedLayers(tempLayerIndex);
 				currentTimeline.pasteFrames(0);
 				currentTimeline.layers[tempLayerIndex].locked = false; // pasting frames can lock layer
 
+				ext.message((new Date()).toLocaleTimeString() + ' - ' + "convertTextToOutlines, step 3");
+				
 				var searchElements=currentTimeline.layers[tempLayerIndex].frames[0].elements;
 				var tempElement=searchElements.expandGroups()[index];
 				var parentGroups=tempElement.getParentGroups();
@@ -3450,6 +3482,9 @@
 						//}
 					}
 				}
+				ext.message((new Date()).toLocaleTimeString() + ' - ' + "convertTextToOutlines, step 4");
+				
+				
 				var tempMatrix=new ext.Matrix();
 				tempElement.matrix=tempMatrix;
 				if(element instanceof ext.Text){
@@ -3489,9 +3524,11 @@
 						ext.doc.breakApart();
 					}catch(e){}
 				}
+				ext.message((new Date()).toLocaleTimeString() + ' - ' + "convertTextToOutlines, step 5");
+
 				ext.doc.union();
-				//options.matrix=matrix.concat(tempMatrix.invert()).concat(options.matrix);
-				options.matrix = fl.Math.concatMatrix(fl.Math.concatMatrix(matrix, tempMatrix.invert()), options.matrix);
+				options.matrix=matrix.concat(tempMatrix.invert()).concat(options.matrix);
+				//options.matrix = fl.Math.concatMatrix(fl.Math.concatMatrix(matrix, tempMatrix.invert()), options.matrix);    does not work with text
 				var xml=this._getShape(currentTimeline.layers[tempLayerIndex].elements[0],options);
 				currentTimeline.deleteLayer(tempLayerIndex);
 				element.removePersistentData(id);
@@ -3499,6 +3536,8 @@
 					ext.log.pauseTimer(timer);	
 				}
 				return xml;
+
+				ext.message((new Date()).toLocaleTimeString() + ' - ' + "convertTextToOutlines, step 6");
 			}
 			return xml;
 		},

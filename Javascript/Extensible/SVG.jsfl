@@ -823,8 +823,12 @@
 			}
 
 			var doRemove =  true;
+			var sname = 'dummy';
 			for(var i=0; i<useList.length; ++i){
 				var useNode = useList[i];
+				ext.message((new Date()).toLocaleTimeString() + ' - ' + "executeExpandUse:" + i + ' - ' + useNode['@name'] + ' - ' + useNode['@id']);
+				sname = useNode['@name'] + '';  //force name as string
+				
 				if(i==0 && useList.length==1){
 					if(symbol.parent())delete symbol.parent().children()[symbol.childIndex()];
 					useNode.parent().insertChildAfter(useNode, symbol);
@@ -841,12 +845,12 @@
 					delete useNode['@y'];
 					this.copyNodeContents(useNode, symbol);
 					delete symbol['@viewBox'];
-
+					
 					if(useNode.@transform && useNode.@transform!=this.IDENTITY_MATRIX)symbol.@transform = useNode.@transform;
 					delete useNode.parent().children()[useNode.childIndex()];
 
 					doRemove = false;
-				}else{
+				}else{					
 					var symCopy = symbol[0].copy();
 					this.copyNodeContents(symCopy, useNode);
 					useNode.setName('g');
@@ -856,13 +860,14 @@
 					delete useNode['@height'];
 					delete useNode['@x'];
 					delete useNode['@y'];
+									
 					if(useNode['@transform']==this.IDENTITY_MATRIX){
 						delete useNode['@transform'];
 					}
 					for each(var node in useNode..*){
 						if(node.hasOwnProperty('@id') && node.localName()!='mask'){
 							node.@id=this._uniqueID(String(node.@id));
-							node.@name=String(node.@name);
+							//node.@name=String(node.@name);
 						}
 						if(node.hasOwnProperty('@mask')){
 							var oldID=String(node.@mask).match(/(?:url\(#)(.*?)(?:\))/);
@@ -893,6 +898,9 @@
 					}
 					//fl.trace("expand: "+id);
 				}
+
+				useNode['@name'] = sname;
+				ext.message((new Date()).toLocaleTimeString() + ' - ' + "executeExpandUse done:" + i + ' - ' + useNode['@name'] + ' - ' + useNode['@id'] + ' name: ' + sname);			
 			}
 			if(ext.log){
 				ext.log.pauseTimer(timer);
@@ -1029,8 +1037,11 @@
 		 * @private
 		 */
 		_getElement:function(element,options){
+			ext.message((new Date()).toLocaleTimeString() + ' - ' + "_getElement: " + element.name);
+
 			var settings=new ext.Object({});
 			settings.extend(options);
+			settings.name = element.name;
 			var result;
 			/*if(this.swfPanel){
 				var progressIncrements=this._getProgressIncrements(
@@ -1162,7 +1173,7 @@
 				endFrame:timeline.frames.length,
 				selection:undefined,
 				id:undefined,
-				name:options.name,
+				name:timeline.name,
 				matrix:new ext.Matrix(),
 				libraryItem:undefined,
 				color:undefined,
@@ -1336,17 +1347,20 @@
 			//ext.message("getTimeline: "+symbolIDString+" "+settings.startFrame+" "+settings.endFrame+" "+settings.frameCount+" "+isNew+" "+settings.timeOffset+" "+layers.length);
 			var instanceID = this._uniqueID(id);
 			instanceXML=new XML('<use xlink-href="#'+id+'" id="'+instanceID+'" />');
+			
+			ext.message("_getTimeline: "+timeline.name + ' - ' + options.name + ' - ' + settings.name);
+			instanceXML['@name']= settings.name;
+			
 			if(isNew){
 				instanceXML['@width']=0;
 				instanceXML['@height']=0;
 				instanceXML['@x']=0;
 				instanceXML['@y']=0;
 				instanceXML['@overflow']="visible";
-				instanceXML['@name']=options.name;
 
 				xml=new XML('<symbol/>');
 				xml['@id']=id;
-				xml['@name']=options.name;
+				xml['@name']=settings.name;
 
 				if(!settings.isRoot){
 					this._symbols[symbolIDString] = xml;
@@ -2247,7 +2261,7 @@
 				name:instance.name
 			});
 			settings.extend(options);
-			//ext.message("_getSymbolInstance: "+instance.libraryItem.name+" - loop:"+instance.loop+" frameCount:"+settings.frameCount+" startFrame:"+settings.startFrame);
+			ext.message((new Date()).toLocaleTimeString() + ' - ' + "_getSymbolInstance: " + instance.name + ' - ' +instance.libraryItem.name+" - loop:"+instance.loop+" frameCount:"+settings.frameCount+" startFrame:"+settings.startFrame);
 			var dom = settings.dom;
 			//settings.matrix = instance.matrix.concat(settings.matrix);
 			settings.matrix = fl.Math.concatMatrix(instance.matrix, settings.matrix);
@@ -2259,6 +2273,8 @@
 			if(ext.log){
 				ext.log.pauseTimer(timer);
 			}
+
+			xml['@libraryItem'] = instance.libraryItem.name;
 			return xml;
 		},
 		_getFilters:function(element,options,defs){
@@ -2565,6 +2581,8 @@
 			}
 		},
 		_getBitmapInstance:function(bitmapInstance,options){
+			ext.message((new Date()).toLocaleTimeString() + ' - ' + "_getBitmapInstance: " + bitmapInstance.name + ' - ' + bitmapInstance.libraryItem.name);
+
 			var item=bitmapInstance.libraryItem;
 			var bitmapURI=this._getBitmapItem(item);
 			var xml=<image overflow='visible' id={this._uniqueID(item.name.basename.stripExtension())} />;
@@ -2638,13 +2656,16 @@
 		 * 
 		 */
 		_getShape:function(shape,options){
+			ext.message((new Date()).toLocaleTimeString() + ' - ' + "_getShape: " + shape.name);
+
 			if(ext.log){
 				var timer=ext.log.startTimer('extensible.SVG._getShape()');	
 			}
 			var settings=new ext.Object({
 				matrix:new ext.Matrix(),
 				colorTransform:null,
-				frame:null
+				frame:null,
+				name: shape.name
 			});
 			settings.extend(options);
 			var dom = settings.dom;
@@ -3404,11 +3425,14 @@
 			return svg.join(' ')+' ';
 		},
 		_getText:function(element,options){
+			ext.message((new Date()).toLocaleTimeString() + ' - ' + "_getText: " + element.name);
+
 			if(ext.log){
 				var timer=ext.log.startTimer('extensible.SVG._getText()');	
 			}
 			var settings=new ext.Object({});
 			settings.extend(options);
+			settings.name = element.name;
 			var xml;
 			if(this.convertTextToOutlines){
 				ext.message((new Date()).toLocaleTimeString() + ' - ' + "convertTextToOutlines, step 1");

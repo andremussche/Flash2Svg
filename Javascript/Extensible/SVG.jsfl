@@ -2274,7 +2274,8 @@
 				ext.log.pauseTimer(timer);
 			}
 
-			xml['@libraryItem'] = instance.libraryItem.name;
+			//angularjs compatible attribute (makes it possible to use an Angular directive!)
+			xml['@library-item'] = instance.libraryItem.name;
 			return xml;
 		},
 		_getFilters:function(element,options,defs){
